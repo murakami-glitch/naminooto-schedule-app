@@ -1,0 +1,33 @@
+{
+  "name": "ナミノオト工程表",
+  "short_name": "工程表",
+  "description": "株式会社ナミノオトの工事工程表入力アプリ。物件情報と工程を入力してJSONを生成、Driveへ自動保存。",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f5f1ea",
+  "theme_color": "#1f1d1a",
+  "lang": "ja",
+  "categories": ["business", "productivity", "utilities"],
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

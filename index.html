@@ -1,0 +1,1050 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>ナミノオト 工程表アプリ</title>
+<meta name="description" content="株式会社ナミノオトの工事工程表入力アプリ。物件情報と工程を入力してJSONを生成、Driveへ自動保存。">
+<meta name="theme-color" content="#1f1d1a">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="工程表">
+<link rel="manifest" href="./manifest.json">
+<link rel="icon" type="image/png" href="./favicon.png">
+<link rel="apple-touch-icon" href="./apple-touch-icon.png">
+<link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://apis.google.com/js/api.js" async defer></script>
+
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  
+  :root {
+    --c-bg: #f5f1ea;
+    --c-paper: #fff;
+    --c-ink: #1f1d1a;
+    --c-sub: #6b6760;
+    --c-line: #d8d2c7;
+    --c-accent: #c8553d;
+    --c-accent-soft: #f3e1dc;
+    --c-blue: #2e5c8a;
+    --c-green: #5a7a4a;
+    --shadow: 0 1px 0 rgba(31,29,26,.06), 0 4px 16px rgba(31,29,26,.08);
+  }
+  
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--c-bg);
+    color: var(--c-ink);
+    font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", system-ui, sans-serif;
+    font-size: 15px;
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+  
+  header {
+    background: var(--c-ink);
+    color: var(--c-bg);
+    padding: 14px 18px 12px;
+    position: sticky; top: 0; z-index: 10;
+    border-bottom: 3px solid var(--c-accent);
+  }
+  
+  header h1 { margin: 0; font-size: 17px; font-weight: 600; letter-spacing: 0.04em; }
+  header .sub { font-size: 11px; color: rgba(245,241,234,.6); margin-top: 2px; letter-spacing: 0.1em; }
+  
+  main { padding: 16px 14px 100px; max-width: 720px; margin: 0 auto; }
+  
+  .card {
+    background: var(--c-paper);
+    border-radius: 10px;
+    padding: 16px 16px 18px;
+    margin-bottom: 14px;
+    box-shadow: var(--shadow);
+    border: 1px solid var(--c-line);
+  }
+  
+  .card h2 {
+    margin: 0 0 12px;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--c-sub);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--c-line);
+  }
+  
+  .field { margin-bottom: 12px; }
+  .field:last-child { margin-bottom: 0; }
+  
+  label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--c-sub);
+    margin-bottom: 5px;
+    letter-spacing: 0.04em;
+  }
+  
+  input[type="text"], input[type="number"], input[type="date"], select, input[list] {
+    width: 100%;
+    padding: 11px 12px;
+    border: 1.5px solid var(--c-line);
+    border-radius: 7px;
+    font-size: 16px;
+    font-family: inherit;
+    background: #fafaf7;
+    color: var(--c-ink);
+    transition: border-color .15s, background .15s;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  
+  input[type="date"] { padding: 10px 12px; }
+  
+  input:focus, select:focus {
+    outline: none;
+    border-color: var(--c-accent);
+    background: #fff;
+  }
+  
+  select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%236b6760' d='M6 8L0 0h12z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 32px;
+  }
+  
+  .row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  
+  .preset-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  
+  .preset-btn {
+    padding: 12px 10px;
+    border: 1.5px solid var(--c-line);
+    border-radius: 8px;
+    background: #fafaf7;
+    color: var(--c-ink);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all .15s;
+    text-align: center;
+  }
+  
+  .preset-btn:active {
+    background: var(--c-accent-soft);
+    border-color: var(--c-accent);
+    transform: translateY(1px);
+  }
+  
+  .preset-btn.empty {
+    grid-column: span 2;
+    background: var(--c-ink);
+    color: var(--c-bg);
+    border-color: var(--c-ink);
+  }
+  
+  .stage-card {
+    background: #fafaf7;
+    border: 1.5px solid var(--c-line);
+    border-radius: 10px;
+    padding: 12px;
+    margin-bottom: 10px;
+    position: relative;
+  }
+  
+  .stage-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
+    gap: 8px;
+  }
+  
+  .stage-num {
+    background: var(--c-accent);
+    color: white;
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  
+  .stage-name-input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    padding: 6px 8px;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--c-ink);
+    border-bottom: 1.5px solid var(--c-line);
+    border-radius: 0;
+  }
+  
+  .stage-name-input:focus {
+    border-bottom-color: var(--c-accent);
+    background: transparent;
+  }
+  
+  .btn-delete {
+    background: none;
+    border: 1.5px solid var(--c-line);
+    color: var(--c-sub);
+    width: 32px; height: 32px;
+    border-radius: 6px;
+    font-size: 16px;
+    cursor: pointer;
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  
+  .btn-delete:active {
+    background: var(--c-accent-soft);
+    border-color: var(--c-accent);
+    color: var(--c-accent);
+  }
+  
+  .period-row {
+    background: white;
+    border: 1px solid var(--c-line);
+    border-radius: 7px;
+    padding: 10px;
+    margin-bottom: 8px;
+  }
+  
+  .period-row .label-small {
+    font-size: 11px;
+    color: var(--c-sub);
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  
+  .period-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  
+  .period-work {
+    margin-bottom: 8px;
+  }
+  
+  .period-delete {
+    background: none;
+    border: none;
+    color: var(--c-sub);
+    font-size: 12px;
+    padding: 4px 8px;
+    cursor: pointer;
+    text-decoration: underline;
+  }
+  
+  .btn-add-period {
+    width: 100%;
+    background: white;
+    color: var(--c-accent);
+    border: 1.5px dashed var(--c-accent);
+    padding: 8px;
+    border-radius: 7px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 4px;
+  }
+  
+  .btn-primary {
+    width: 100%;
+    background: var(--c-ink);
+    color: var(--c-bg);
+    border: none;
+    padding: 14px;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    letter-spacing: 0.04em;
+    transition: opacity .15s;
+  }
+  .btn-primary:active { opacity: 0.8; }
+  
+  .btn-add {
+    width: 100%;
+    background: var(--c-accent);
+    color: white;
+    border: none;
+    padding: 14px;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    letter-spacing: 0.04em;
+    margin-top: 4px;
+    box-shadow: 0 2px 6px rgba(200,85,61,.25);
+  }
+  .btn-add:active { transform: translateY(1px); box-shadow: 0 1px 3px rgba(200,85,61,.25); }
+  
+  .actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 14px;
+  }
+  
+  .btn-sub {
+    background: var(--c-paper);
+    color: var(--c-ink);
+    border: 1.5px solid var(--c-line);
+    padding: 13px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .btn-sub:active { background: #efe9dc; }
+  .btn-danger { background: transparent; color: var(--c-accent); border: 1.5px solid var(--c-accent); }
+  
+  .empty {
+    text-align: center;
+    padding: 30px 20px;
+    color: var(--c-sub);
+    font-size: 13px;
+    border: 2px dashed var(--c-line);
+    border-radius: 10px;
+    margin-bottom: 14px;
+  }
+  
+  .empty .icon { font-size: 32px; display: block; margin-bottom: 8px; opacity: 0.4; }
+  
+  /* Modal */
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(31,29,26,.55);
+    display: none;
+    align-items: flex-end;
+    justify-content: center;
+    z-index: 100;
+  }
+  .modal-overlay.active { display: flex; }
+  
+  .modal {
+    background: var(--c-paper);
+    border-radius: 14px 14px 0 0;
+    padding: 18px;
+    width: 100%;
+    max-width: 720px;
+    max-height: 85vh;
+    overflow-y: auto;
+    animation: slideUp .25s ease-out;
+  }
+  
+  @keyframes slideUp {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+  }
+  
+  .modal h3 { margin: 0 0 12px; font-size: 15px; color: var(--c-sub); }
+  
+  .modal textarea {
+    width: 100%;
+    min-height: 320px;
+    padding: 12px;
+    border: 1.5px solid var(--c-line);
+    border-radius: 7px;
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 11px;
+    line-height: 1.5;
+    background: #fafaf7;
+    resize: vertical;
+  }
+  
+  .modal-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 14px;
+  }
+  
+  .toast {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: var(--c-ink);
+    color: var(--c-bg);
+    padding: 12px 22px;
+    border-radius: 30px;
+    font-size: 14px;
+    font-weight: 500;
+    box-shadow: 0 8px 24px rgba(0,0,0,.2);
+    transition: transform .3s ease-out;
+    z-index: 200;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  
+  @media (min-width: 600px) {
+    main { padding: 22px 20px 100px; }
+    .card { padding: 20px 22px 22px; }
+    .preset-grid { grid-template-columns: 1fr 1fr 1fr; }
+    .preset-btn.empty { grid-column: span 3; }
+  }
+  
+  @media (hover: hover) {
+    .btn-primary:hover { opacity: 0.9; }
+    .btn-add:hover { background: #b14b35; }
+    .preset-btn:hover { background: var(--c-accent-soft); border-color: var(--c-accent); }
+    .btn-delete:hover { color: var(--c-accent); border-color: var(--c-accent); }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>📅 ナミノオト 工程表アプリ</h1>
+  <div class="sub">SCHEDULE BUILDER — 工事工程表 作成 v1.1.0</div>
+</header>
+
+<main>
+  
+  <!-- 物件情報 -->
+  <div class="card">
+    <h2>物件情報</h2>
+    <div class="field">
+      <label>物件名 <span style="color:var(--c-accent)">*</span></label>
+      <input type="text" id="propName" placeholder="例：番様邸">
+    </div>
+    <div class="field">
+      <label>住所</label>
+      <input type="text" id="propAddr" placeholder="例：大阪府高槻市下田部町1-1-22">
+    </div>
+    <div class="row">
+      <div class="field">
+        <label>開始日 <span style="color:var(--c-accent)">*</span></label>
+        <input type="date" id="startDate">
+      </div>
+      <div class="field">
+        <label>完了予定日 <span style="color:var(--c-accent)">*</span></label>
+        <input type="date" id="endDate">
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label>責任者</label>
+        <input list="staffList" id="manager" value="村上昌史" placeholder="村上昌史">
+      </div>
+      <div class="field">
+        <label>作成者</label>
+        <input list="staffList" id="creator" value="村上昌史" placeholder="村上昌史">
+      </div>
+    </div>
+  </div>
+  
+  <!-- 担当者プルダウンリスト -->
+  <datalist id="staffList">
+    <option value="藤田（足場）">
+    <option value="生田（シーリング）">
+    <option value="塚本（塗装）">
+    <option value="木村（大工）">
+    <option value="中島（壁紙）">
+    <option value="足立（大工）">
+    <option value="栗原（壁・床）">
+    <option value="岸本（塗装）">
+    <option value="河田（床）">
+    <option value="太内（設備）">
+    <option value="岡崎（電気）">
+    <option value="村上昌史">
+  </datalist>
+  
+  <!-- プリセット選択 -->
+  <div class="card">
+    <h2>📦 工程プリセット（タップで読込）</h2>
+    <div class="preset-grid">
+      <button class="preset-btn" data-preset="paint">外壁・屋根塗装工事</button>
+      <button class="preset-btn" data-preset="interior">内装リフォーム工事</button>
+      <button class="preset-btn" data-preset="carpenter">大工工事</button>
+      <button class="preset-btn" data-preset="cloth">クロス貼替</button>
+      <button class="preset-btn" data-preset="floor">床張替え</button>
+      <button class="preset-btn" data-preset="electric">電気工事</button>
+      <button class="preset-btn" data-preset="plumbing">設備工事</button>
+      <button class="preset-btn empty" data-preset="empty">ゼロから入力</button>
+    </div>
+  </div>
+  
+  <!-- 工程リスト -->
+  <div id="stageList"></div>
+  
+  <button class="btn-add" id="btnAddStage">＋ 工程を追加</button>
+  
+  <!-- 操作 -->
+  <div class="actions">
+    <button class="btn-sub" id="btnExport">📋 テキスト出力</button>
+    <button class="btn-sub btn-danger" id="btnReset">🗑️ 全リセット</button>
+  </div>
+  
+</main>
+
+<!-- 出力モーダル -->
+<div class="modal-overlay" id="exportModal">
+  <div class="modal">
+    <h3>JSONペイロード（コピーしてなっちゃんに送信）</h3>
+    <textarea id="exportText" readonly></textarea>
+    <div class="modal-actions">
+      <button class="btn-sub" id="btnCopy">📋 コピー</button>
+      <button class="btn-sub" id="btnDriveSave" style="background:#2e5c8a;color:#fff;border-color:#2e5c8a;">☁️ Driveに保存</button>
+      <button class="btn-primary" id="btnCloseModal">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const STORAGE_KEY = 'naminooto_schedule_v1';
+const APP_VERSION = 'v1.1.0';
+
+// プリセット定義
+const PRESETS = {
+  paint: {
+    name: '外壁・屋根塗装工事',
+    stages: [
+      { name: '仮設足場工事', staff: '藤田（足場）', work: '足場組立／解体' },
+      { name: '高圧洗浄', staff: '塚本（塗装）', work: '高圧洗浄' },
+      { name: '外壁シーリング工事', staff: '生田（シーリング）', work: 'シール撤去・打ち' },
+      { name: '屋根塗装', staff: '塚本（塗装）', work: '屋根 下塗り・中塗り・上塗り' },
+      { name: '外壁塗装', staff: '塚本（塗装）', work: '外壁 下塗り・中塗り・上塗り' },
+      { name: '付帯部塗装', staff: '塚本（塗装）', work: '付帯部塗装' },
+      { name: 'ベランダ防水', staff: '塚本（塗装）', work: 'バルコニー防水工事' },
+      { name: '清掃・引渡し', staff: '村上昌史', work: '清掃・最終確認' }
+    ]
+  },
+  interior: {
+    name: '内装リフォーム工事',
+    stages: [
+      { name: '養生・解体', staff: '木村（大工）', work: '養生・既存解体' },
+      { name: '床工事', staff: '木村（大工）', work: '床張替え' },
+      { name: '壁紙工事', staff: '中島（壁紙）', work: 'クロス貼替' },
+      { name: '仕上げ清掃', staff: '村上昌史', work: '仕上げ清掃' }
+    ]
+  },
+  carpenter: {
+    name: '大工工事',
+    stages: [
+      { name: '解体工事', staff: '木村（大工）', work: '既存解体' },
+      { name: '配管・電気工事', staff: '', work: '配管・電気' },
+      { name: '大工メイン作業', staff: '木村（大工）', work: '造作工事' },
+      { name: '復旧・仕上げ', staff: '木村（大工）', work: '復旧・仕上げ' },
+      { name: '清掃', staff: '村上昌史', work: '清掃' }
+    ]
+  },
+  cloth: {
+    name: 'クロス貼替',
+    stages: [
+      { name: '養生', staff: '中島(壁紙)', work: '養生' },
+      { name: '既存クロス剥がし', staff: '中島(壁紙)', work: '既存クロス剥がし' },
+      { name: '下地処理', staff: '中島(壁紙)', work: '下地処理' },
+      { name: '新規クロス貼り', staff: '中島(壁紙)', work: '新規クロス貼り' },
+      { name: '清掃', staff: '村上昌史', work: '清掃' }
+    ]
+  },
+  floor: {
+    name: '床張替え',
+    stages: [
+      { name: '養生・既存床撤去', staff: '木村（大工）', work: '養生・既存床撤去' },
+      { name: '下地調整', staff: '木村（大工）', work: '下地調整' },
+      { name: '新規床貼り', staff: '木村（大工）', work: '新規床張り' },
+      { name: '巾木貼替', staff: '木村（大工）', work: '巾木貼替' },
+      { name: '清掃', staff: '村上昌史', work: '清掃' }
+    ]
+  },
+  electric: {
+    name: '電気工事',
+    stages: [
+      { name: '既存器具撤去', staff: '岡崎（電気）', work: '既存器具撤去' },
+      { name: '配線工事', staff: '岡崎（電気）', work: '配線工事' },
+      { name: '器具取付', staff: '岡崎（電気）', work: 'コンセント・スイッチ取付' },
+      { name: '照明取付', staff: '岡崎（電気）', work: '照明取付' },
+      { name: '通電確認・清掃', staff: '岡崎（電気）', work: '通電確認・清掃' }
+    ]
+  },
+  plumbing: {
+    name: '設備工事',
+    stages: [
+      { name: '既存設備撤去', staff: '太内（設備）', work: '既存設備撤去' },
+      { name: '給排水管工事', staff: '太内（設備）', work: '給排水管工事' },
+      { name: 'トイレ取替', staff: '太内（設備）', work: 'トイレ取替' },
+      { name: '洗面台取替', staff: '太内（設備）', work: '洗面台取替' },
+      { name: '新規設備取付', staff: '太内（設備）', work: '新規設備取付' },
+      { name: '動作確認・清掃', staff: '太内（設備）', work: '動作確認・清掃' }
+    ]
+  }
+};
+
+let state = {
+  propName: '',
+  propAddr: '',
+  startDate: '',
+  endDate: '',
+  manager: '村上昌史',
+  creator: '村上昌史',
+  stages: []
+};
+
+function newStage(name = '', staff = '') {
+  return {
+    id: Date.now() + Math.random(),
+    name: name,
+    staff: staff,
+    periods: [newPeriod()]
+  };
+}
+
+function newPeriod(start = '', end = '', work = '') {
+  return {
+    id: Date.now() + Math.random(),
+    start: start,
+    end: end,
+    work: work
+  };
+}
+
+function loadPreset(presetKey) {
+  if (presetKey === 'empty') {
+    if (state.stages.length > 0 && !confirm('既存の工程をクリアしてゼロから入力しますか？')) return;
+    state.stages = [newStage()];
+  } else {
+    const preset = PRESETS[presetKey];
+    if (!preset) return;
+    if (state.stages.length > 0 && !confirm(`既存の工程に「${preset.name}」プリセットを読み込みますか？\n（既存工程はクリアされます）`)) return;
+    state.stages = preset.stages.map(s => {
+      const stage = newStage(s.name, s.staff);
+      stage.periods[0].work = s.work;
+      return stage;
+    });
+  }
+  render();
+  showToast(`✓ プリセット読込完了`);
+}
+
+function renderStages() {
+  const list = document.getElementById('stageList');
+  if (state.stages.length === 0) {
+    list.innerHTML = '<div class="empty"><span class="icon">📋</span>上のプリセットを選ぶか<br>「＋工程を追加」で開始</div>';
+    return;
+  }
+  
+  list.innerHTML = state.stages.map((s, idx) => `
+    <div class="stage-card" data-id="${s.id}">
+      <div class="stage-header">
+        <div class="stage-num">${idx+1}</div>
+        <input type="text" class="stage-name-input s-name" value="${escapeHTML(s.name)}" placeholder="工程名（例：仮設足場工事）">
+        <button class="btn-delete" data-action="delete-stage">×</button>
+      </div>
+      
+      <div class="field" style="margin-bottom: 8px;">
+        <input list="staffList" class="s-staff" value="${escapeHTML(s.staff)}" placeholder="担当（プルダウン or 手入力）" style="padding: 9px 12px; font-size: 14px;">
+      </div>
+      
+      <div class="periods" data-stage-id="${s.id}">
+        ${s.periods.map((p, pidx) => `
+          <div class="period-row" data-period-id="${p.id}">
+            <div class="label-small">期間 ${pidx+1}${s.periods.length > 1 ? ` ／ ${s.periods.length}期間` : ''}</div>
+            <div class="period-grid">
+              <input type="date" class="p-start" value="${p.start}">
+              <input type="date" class="p-end" value="${p.end}">
+            </div>
+            <div class="period-work">
+              <input type="text" class="p-work" value="${escapeHTML(p.work)}" placeholder="作業名（例：足場組立）" style="padding: 9px 12px; font-size: 14px;">
+            </div>
+            ${s.periods.length > 1 ? `<button class="period-delete" data-action="delete-period">この期間を削除</button>` : ''}
+          </div>
+        `).join('')}
+      </div>
+      
+      <button class="btn-add-period" data-action="add-period">＋ 期間を追加（解体→復旧など）</button>
+    </div>
+  `).join('');
+  
+  attachStageListeners();
+}
+
+function attachStageListeners() {
+  document.querySelectorAll('.stage-card').forEach(card => {
+    const id = parseFloat(card.dataset.id);
+    const stage = state.stages.find(s => s.id === id);
+    if (!stage) return;
+    
+    card.querySelector('.s-name').addEventListener('input', e => { stage.name = e.target.value; saveState(); });
+    card.querySelector('.s-staff').addEventListener('input', e => { stage.staff = e.target.value; saveState(); });
+    
+    card.querySelector('[data-action="delete-stage"]').addEventListener('click', () => {
+      if (confirm(`「${stage.name || '工程'}」を削除しますか？`)) {
+        state.stages = state.stages.filter(s => s.id !== id);
+        render();
+      }
+    });
+    
+    card.querySelector('[data-action="add-period"]').addEventListener('click', () => {
+      stage.periods.push(newPeriod());
+      render();
+    });
+    
+    card.querySelectorAll('.period-row').forEach(prow => {
+      const pid = parseFloat(prow.dataset.periodId);
+      const period = stage.periods.find(p => p.id === pid);
+      if (!period) return;
+      
+      prow.querySelector('.p-start').addEventListener('input', e => { period.start = e.target.value; saveState(); });
+      prow.querySelector('.p-end').addEventListener('input', e => { period.end = e.target.value; saveState(); });
+      prow.querySelector('.p-work').addEventListener('input', e => { period.work = e.target.value; saveState(); });
+      
+      const delBtn = prow.querySelector('[data-action="delete-period"]');
+      if (delBtn) {
+        delBtn.addEventListener('click', () => {
+          if (stage.periods.length <= 1) return;
+          if (confirm('この期間を削除しますか？')) {
+            stage.periods = stage.periods.filter(p => p.id !== pid);
+            render();
+          }
+        });
+      }
+    });
+  });
+}
+
+function render() {
+  document.getElementById('propName').value = state.propName;
+  document.getElementById('propAddr').value = state.propAddr;
+  document.getElementById('startDate').value = state.startDate;
+  document.getElementById('endDate').value = state.endDate;
+  document.getElementById('manager').value = state.manager;
+  document.getElementById('creator').value = state.creator;
+  renderStages();
+  saveState();
+}
+
+function saveState() {
+  state.propName = document.getElementById('propName').value;
+  state.propAddr = document.getElementById('propAddr').value;
+  state.startDate = document.getElementById('startDate').value;
+  state.endDate = document.getElementById('endDate').value;
+  state.manager = document.getElementById('manager').value;
+  state.creator = document.getElementById('creator').value;
+  try {
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch(e) { console.warn('保存失敗', e); }
+}
+
+function loadState() {
+  try {
+    const saved = sessionStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      state = Object.assign(state, parsed);
+    }
+  } catch(e) { console.warn('読込失敗', e); }
+}
+
+function generateExport() {
+  saveState();
+  const today = new Date().toISOString().split('T')[0];
+  
+  const payload = {
+    meta: {
+      app: 'naminooto-schedule',
+      version: '1.0',
+      generatedAt: new Date().toISOString()
+    },
+    property: {
+      name: state.propName,
+      address: state.propAddr,
+      startDate: state.startDate,
+      endDate: state.endDate,
+      manager: state.manager,
+      creator: state.creator,
+      issueDate: today
+    },
+    stages: state.stages.map(s => ({
+      name: s.name,
+      staff: s.staff,
+      periods: s.periods
+        .filter(p => p.start || p.end || p.work)
+        .map(p => ({ start: p.start, end: p.end, work: p.work }))
+    })).filter(s => s.name || s.staff || s.periods.length > 0)
+  };
+  
+  return JSON.stringify(payload);
+}
+
+function escapeHTML(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 1800);
+}
+
+// イベント
+document.querySelectorAll('.preset-btn').forEach(btn => {
+  btn.addEventListener('click', () => loadPreset(btn.dataset.preset));
+});
+
+document.getElementById('btnAddStage').addEventListener('click', () => {
+  state.stages.push(newStage());
+  render();
+  setTimeout(() => {
+    const cards = document.querySelectorAll('.stage-card');
+    const last = cards[cards.length - 1];
+    if (last) {
+      last.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      last.querySelector('.s-name').focus();
+    }
+  }, 100);
+});
+
+document.getElementById('btnExport').addEventListener('click', () => {
+  if (!state.propName) {
+    showToast('物件名を入力してな〜');
+    return;
+  }
+  if (state.stages.length === 0) {
+    showToast('まず工程を追加してな〜');
+    return;
+  }
+  const text = generateExport();
+  document.getElementById('exportText').value = text;
+  document.getElementById('exportModal').classList.add('active');
+});
+
+document.getElementById('btnCloseModal').addEventListener('click', () => {
+  document.getElementById('exportModal').classList.remove('active');
+});
+
+document.getElementById('btnCopy').addEventListener('click', async () => {
+  const text = document.getElementById('exportText').value;
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast('✓ コピーしました');
+  } catch(e) {
+    document.getElementById('exportText').select();
+    document.execCommand('copy');
+    showToast('✓ コピーしました');
+  }
+});
+
+document.getElementById('btnReset').addEventListener('click', () => {
+  if (confirm('全部リセットしますか？\n（物件情報・工程データが消えます）')) {
+    state = { propName: '', propAddr: '', startDate: '', endDate: '', manager: '村上昌史', creator: '村上昌史', stages: [] };
+    sessionStorage.removeItem(STORAGE_KEY);
+    render();
+    showToast('リセットしました');
+  }
+});
+
+['propName', 'propAddr', 'startDate', 'endDate', 'manager', 'creator'].forEach(id => {
+  document.getElementById(id).addEventListener('input', () => saveState());
+});
+
+// 初期化
+loadState();
+render();
+
+// ============================================
+// Google Drive 保存機能
+// ============================================
+const DRIVE_FOLDER_PATH = ['ナミノオト_施工写真', '_工程表'];
+const SCOPES = 'https://www.googleapis.com/auth/drive.file';
+let tokenClient = null;
+let gapiReady = false;
+let gisReady = false;
+
+// Google API 初期化
+function initDriveAPI() {
+  if (typeof gapi !== 'undefined' && !gapiReady) {
+    gapi.load('client', async () => {
+      await gapi.client.init({
+        discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'],
+      });
+      gapiReady = true;
+    });
+  }
+  if (typeof google !== 'undefined' && google.accounts && !gisReady) {
+    const clientId = localStorage.getItem('naminooto_drive_client_id');
+    if (clientId) {
+      tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: clientId,
+        scope: SCOPES,
+        callback: '', // 後でhandlerをセット
+      });
+      gisReady = true;
+    }
+  }
+}
+
+// Client ID 入力プロンプト
+function promptForClientId() {
+  const msg = 'Google Drive保存にはOAuth Client IDが必要やで！\n' +
+              'Google Cloud Consoleで取得したClient IDを入力してな。\n' +
+              '（取得方法はGitHubのREADME.md参照）';
+  const cid = prompt(msg, localStorage.getItem('naminooto_drive_client_id') || '');
+  if (cid && cid.includes('.apps.googleusercontent.com')) {
+    localStorage.setItem('naminooto_drive_client_id', cid.trim());
+    initDriveAPI();
+    return true;
+  } else if (cid) {
+    alert('Client ID の形式が違うで〜（末尾が .apps.googleusercontent.com）');
+  }
+  return false;
+}
+
+// アクセストークン取得
+function getAccessToken() {
+  return new Promise((resolve, reject) => {
+    if (!gisReady || !tokenClient) {
+      if (!promptForClientId()) {
+        reject(new Error('Client ID 未設定'));
+        return;
+      }
+    }
+    if (!gapiReady) {
+      reject(new Error('Google API 読込中…もう一度ボタン押してな〜'));
+      return;
+    }
+    tokenClient.callback = (resp) => {
+      if (resp.error) {
+        reject(new Error(resp.error));
+      } else {
+        gapi.client.setToken({ access_token: resp.access_token });
+        resolve(resp.access_token);
+      }
+    };
+    tokenClient.requestAccessToken({ prompt: '' });
+  });
+}
+
+// フォルダ検索（無ければ作成）
+async function findOrCreateFolder(name, parentId) {
+  const q = `name='${name.replace(/'/g, "\\'")}' and mimeType='application/vnd.google-apps.folder' and trashed=false` +
+            (parentId ? ` and '${parentId}' in parents` : '');
+  const res = await gapi.client.drive.files.list({ q, fields: 'files(id, name)' });
+  if (res.result.files && res.result.files.length > 0) {
+    return res.result.files[0].id;
+  }
+  const meta = { name, mimeType: 'application/vnd.google-apps.folder' };
+  if (parentId) meta.parents = [parentId];
+  const create = await gapi.client.drive.files.create({ resource: meta, fields: 'id' });
+  return create.result.id;
+}
+
+// JSONファイル保存
+async function saveToDrive() {
+  if (!state.propName) {
+    showToast('物件名がないとファイル名作れんで〜');
+    return;
+  }
+  try {
+    showToast('Drive認証中…');
+    await getAccessToken();
+
+    showToast('フォルダ確認中…');
+    let parentId = null;
+    for (const folderName of DRIVE_FOLDER_PATH) {
+      parentId = await findOrCreateFolder(folderName, parentId);
+    }
+
+    // ファイル名生成: YYYYMMDD_物件名様邸_工程表データ.json
+    const dateStr = (state.startDate || new Date().toISOString().split('T')[0]).replace(/-/g, '');
+    const fileName = `${dateStr}_${state.propName}様邸_工程表データ.json`;
+    const jsonContent = document.getElementById('exportText').value;
+
+    // 同名ファイルあれば上書き、なければ新規作成
+    const existingQ = `name='${fileName.replace(/'/g, "\\'")}' and '${parentId}' in parents and trashed=false`;
+    const existing = await gapi.client.drive.files.list({ q: existingQ, fields: 'files(id)' });
+
+    const boundary = '-------naminoto_boundary_' + Date.now();
+    const metadata = { name: fileName, mimeType: 'application/json' };
+    if (!existing.result.files || existing.result.files.length === 0) {
+      metadata.parents = [parentId];
+    }
+    const body =
+      `--${boundary}\r\n` +
+      'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+      JSON.stringify(metadata) + `\r\n` +
+      `--${boundary}\r\n` +
+      'Content-Type: application/json\r\n\r\n' +
+      jsonContent + `\r\n` +
+      `--${boundary}--`;
+
+    const method = existing.result.files && existing.result.files.length > 0 ? 'PATCH' : 'POST';
+    const path = existing.result.files && existing.result.files.length > 0
+      ? `/upload/drive/v3/files/${existing.result.files[0].id}?uploadType=multipart`
+      : '/upload/drive/v3/files?uploadType=multipart';
+
+    showToast('アップロード中…');
+    const resp = await gapi.client.request({
+      path: path,
+      method: method,
+      params: { uploadType: 'multipart' },
+      headers: { 'Content-Type': `multipart/related; boundary=${boundary}` },
+      body: body,
+    });
+
+    if (resp.status === 200 || resp.status === 201) {
+      showToast('✓ Driveに保存しました');
+    } else {
+      throw new Error('保存失敗: ' + resp.status);
+    }
+  } catch (e) {
+    console.error('Drive保存エラー:', e);
+    showToast('❌ Drive保存失敗: ' + (e.message || e));
+  }
+}
+
+// ボタンイベント
+document.getElementById('btnDriveSave').addEventListener('click', saveToDrive);
+
+// Google API ロード待ち
+window.addEventListener('load', () => {
+  setTimeout(initDriveAPI, 800);
+  setTimeout(initDriveAPI, 2000);
+});
+
+// ============================================
+// Service Worker 登録
+// ============================================
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js')
+      .then(reg => console.log('[PWA] SW registered:', reg.scope))
+      .catch(err => console.warn('[PWA] SW registration failed:', err));
+  });
+}
+
+// ============================================
+// PWAインストールプロンプト管理
+// ============================================
+let deferredInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+});
+
+</script>
+
+</body>
+</html>
