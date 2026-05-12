@@ -431,7 +431,7 @@
 
 <header>
   <h1>📅 ナミノオト 工程表アプリ</h1>
-  <div class="sub">SCHEDULE BUILDER — 工事工程表 作成 v1.2.0</div>
+  <div class="sub">SCHEDULE BUILDER — 工事工程表 作成 v1.3.0</div>
 </header>
 
 <main>
@@ -554,6 +554,7 @@
     <textarea id="exportText" readonly></textarea>
     <div class="modal-actions">
       <button class="btn-sub" id="btnCopy">📋 コピー</button>
+      <button class="btn-sub" id="btnMail" style="background:#5a7a4a;color:#fff;border-color:#5a7a4a;">📧 メールで送る</button>
       <button class="btn-sub" id="btnDriveSave" style="background:#2e5c8a;color:#fff;border-color:#2e5c8a;">☁️ Driveに保存</button>
       <button class="btn-primary" id="btnCloseModal">閉じる</button>
     </div>
@@ -564,7 +565,7 @@
 
 <script>
 const STORAGE_KEY = 'naminooto_schedule_v1';
-const APP_VERSION = 'v1.2.0';
+const APP_VERSION = 'v1.3.0';
 
 // プリセット定義
 const PRESETS = {
@@ -1083,6 +1084,30 @@ document.getElementById('btnDriveSave').addEventListener('click', saveToDrive);
 window.addEventListener('load', () => {
   setTimeout(initDriveAPI, 800);
   setTimeout(initDriveAPI, 2000);
+});
+
+
+// ============================================
+// メール送信機能（スマホ→PCへJSONを送る）
+// ============================================
+document.getElementById('btnMail').addEventListener('click', () => {
+  const text = document.getElementById('exportText').value;
+  if (!text) {
+    showToast('まずテキスト出力してな〜');
+    return;
+  }
+  const name = state.propName || '工程表';
+  const subject = `【工程表JSON】${name}様邸`;
+  const body = text;
+  // mailto: の長さ制限を考慮（一部メーラーで2000字程度）
+  const mailto = `mailto:murakami@nami-no-oto.co.jp?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  if (mailto.length > 8000) {
+    showToast('JSON長すぎ。コピーしてメールに貼り付けてな〜');
+    return;
+  }
+  // メーラー起動
+  window.location.href = mailto;
+  showToast('📧 メーラー起動！');
 });
 
 // ============================================
