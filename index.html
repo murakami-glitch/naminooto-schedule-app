@@ -408,13 +408,30 @@
     .preset-btn:hover { background: var(--c-accent-soft); border-color: var(--c-accent); }
     .btn-delete:hover { color: var(--c-accent); border-color: var(--c-accent); }
   }
+
+  .staff-row { display: flex; flex-direction: column; gap: 6px; }
+  .staff-row select, .staff-row input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--c-line);
+    border-radius: 8px;
+    background: var(--c-paper);
+    font-size: 14px;
+    font-family: inherit;
+    color: var(--c-ink);
+    -webkit-appearance: menulist;
+    appearance: menulist;
+  }
+  .staff-row select { font-weight: 500; color: var(--c-sub); }
+  .staff-row input { color: var(--c-ink); }
+
 </style>
 </head>
 <body>
 
 <header>
   <h1>📅 ナミノオト 工程表アプリ</h1>
-  <div class="sub">SCHEDULE BUILDER — 工事工程表 作成 v1.1.0</div>
+  <div class="sub">SCHEDULE BUILDER — 工事工程表 作成 v1.2.0</div>
 </header>
 
 <main>
@@ -443,11 +460,45 @@
     <div class="row">
       <div class="field">
         <label>責任者</label>
-        <input list="staffList" id="manager" value="村上昌史" placeholder="村上昌史">
+        <div class="staff-row">
+          <select class="staff-select-header" data-target="manager">
+            <option value="">▼ プルダウンで選ぶ</option>
+            <option value="藤田（足場）">藤田（足場）</option>
+            <option value="生田（シーリング）">生田（シーリング）</option>
+            <option value="塚本（塗装）">塚本（塗装）</option>
+            <option value="木村（大工）">木村（大工）</option>
+            <option value="中島（壁紙）">中島（壁紙）</option>
+            <option value="足立（大工）">足立（大工）</option>
+            <option value="栗原（壁・床）">栗原（壁・床）</option>
+            <option value="岸本（塗装）">岸本（塗装）</option>
+            <option value="河田（床）">河田（床）</option>
+            <option value="太内（設備）">太内（設備）</option>
+            <option value="岡崎（電気）">岡崎（電気）</option>
+            <option value="村上昌史">村上昌史</option>
+          </select>
+          <input type="text" id="manager" value="村上昌史" placeholder="村上昌史">
+        </div>
       </div>
       <div class="field">
         <label>作成者</label>
-        <input list="staffList" id="creator" value="村上昌史" placeholder="村上昌史">
+        <div class="staff-row">
+          <select class="staff-select-header" data-target="creator">
+            <option value="">▼ プルダウンで選ぶ</option>
+            <option value="藤田（足場）">藤田（足場）</option>
+            <option value="生田（シーリング）">生田（シーリング）</option>
+            <option value="塚本（塗装）">塚本（塗装）</option>
+            <option value="木村（大工）">木村（大工）</option>
+            <option value="中島（壁紙）">中島（壁紙）</option>
+            <option value="足立（大工）">足立（大工）</option>
+            <option value="栗原（壁・床）">栗原（壁・床）</option>
+            <option value="岸本（塗装）">岸本（塗装）</option>
+            <option value="河田（床）">河田（床）</option>
+            <option value="太内（設備）">太内（設備）</option>
+            <option value="岡崎（電気）">岡崎（電気）</option>
+            <option value="村上昌史">村上昌史</option>
+          </select>
+          <input type="text" id="creator" value="村上昌史" placeholder="村上昌史">
+        </div>
       </div>
     </div>
   </div>
@@ -513,12 +564,13 @@
 
 <script>
 const STORAGE_KEY = 'naminooto_schedule_v1';
-const APP_VERSION = 'v1.1.0';
+const APP_VERSION = 'v1.2.0';
 
 // プリセット定義
 const PRESETS = {
   paint: {
     name: '外壁・屋根塗装工事',
+    type: 'multi',
     stages: [
       { name: '仮設足場工事', staff: '藤田（足場）', work: '足場組立／解体' },
       { name: '高圧洗浄', staff: '塚本（塗装）', work: '高圧洗浄' },
@@ -530,66 +582,12 @@ const PRESETS = {
       { name: '清掃・引渡し', staff: '村上昌史', work: '清掃・最終確認' }
     ]
   },
-  interior: {
-    name: '内装リフォーム工事',
-    stages: [
-      { name: '養生・解体', staff: '木村（大工）', work: '養生・既存解体' },
-      { name: '床工事', staff: '木村（大工）', work: '床張替え' },
-      { name: '壁紙工事', staff: '中島（壁紙）', work: 'クロス貼替' },
-      { name: '仕上げ清掃', staff: '村上昌史', work: '仕上げ清掃' }
-    ]
-  },
-  carpenter: {
-    name: '大工工事',
-    stages: [
-      { name: '解体工事', staff: '木村（大工）', work: '既存解体' },
-      { name: '配管・電気工事', staff: '', work: '配管・電気' },
-      { name: '大工メイン作業', staff: '木村（大工）', work: '造作工事' },
-      { name: '復旧・仕上げ', staff: '木村（大工）', work: '復旧・仕上げ' },
-      { name: '清掃', staff: '村上昌史', work: '清掃' }
-    ]
-  },
-  cloth: {
-    name: 'クロス貼替',
-    stages: [
-      { name: '養生', staff: '中島(壁紙)', work: '養生' },
-      { name: '既存クロス剥がし', staff: '中島(壁紙)', work: '既存クロス剥がし' },
-      { name: '下地処理', staff: '中島(壁紙)', work: '下地処理' },
-      { name: '新規クロス貼り', staff: '中島(壁紙)', work: '新規クロス貼り' },
-      { name: '清掃', staff: '村上昌史', work: '清掃' }
-    ]
-  },
-  floor: {
-    name: '床張替え',
-    stages: [
-      { name: '養生・既存床撤去', staff: '木村（大工）', work: '養生・既存床撤去' },
-      { name: '下地調整', staff: '木村（大工）', work: '下地調整' },
-      { name: '新規床貼り', staff: '木村（大工）', work: '新規床張り' },
-      { name: '巾木貼替', staff: '木村（大工）', work: '巾木貼替' },
-      { name: '清掃', staff: '村上昌史', work: '清掃' }
-    ]
-  },
-  electric: {
-    name: '電気工事',
-    stages: [
-      { name: '既存器具撤去', staff: '岡崎（電気）', work: '既存器具撤去' },
-      { name: '配線工事', staff: '岡崎（電気）', work: '配線工事' },
-      { name: '器具取付', staff: '岡崎（電気）', work: 'コンセント・スイッチ取付' },
-      { name: '照明取付', staff: '岡崎（電気）', work: '照明取付' },
-      { name: '通電確認・清掃', staff: '岡崎（電気）', work: '通電確認・清掃' }
-    ]
-  },
-  plumbing: {
-    name: '設備工事',
-    stages: [
-      { name: '既存設備撤去', staff: '太内（設備）', work: '既存設備撤去' },
-      { name: '給排水管工事', staff: '太内（設備）', work: '給排水管工事' },
-      { name: 'トイレ取替', staff: '太内（設備）', work: 'トイレ取替' },
-      { name: '洗面台取替', staff: '太内（設備）', work: '洗面台取替' },
-      { name: '新規設備取付', staff: '太内（設備）', work: '新規設備取付' },
-      { name: '動作確認・清掃', staff: '太内（設備）', work: '動作確認・清掃' }
-    ]
-  }
+  interior:  { name: '内装リフォーム工事', type: 'shortcut' },
+  carpenter: { name: '大工工事',           type: 'shortcut' },
+  cloth:     { name: 'クロス貼替',         type: 'shortcut' },
+  floor:     { name: '床張替え',           type: 'shortcut' },
+  electric:  { name: '電気工事',           type: 'shortcut' },
+  plumbing:  { name: '設備工事',           type: 'shortcut' }
 };
 
 let state = {
@@ -624,16 +622,34 @@ function loadPreset(presetKey) {
   if (presetKey === 'empty') {
     if (state.stages.length > 0 && !confirm('既存の工程をクリアしてゼロから入力しますか？')) return;
     state.stages = [newStage()];
-  } else {
-    const preset = PRESETS[presetKey];
-    if (!preset) return;
-    if (state.stages.length > 0 && !confirm(`既存の工程に「${preset.name}」プリセットを読み込みますか？\n（既存工程はクリアされます）`)) return;
-    state.stages = preset.stages.map(s => {
-      const stage = newStage(s.name, s.staff);
-      stage.periods[0].work = s.work;
-      return stage;
-    });
+    render();
+    showToast(`✓ ゼロから開始`);
+    return;
   }
+  const preset = PRESETS[presetKey];
+  if (!preset) return;
+
+  if (preset.type === 'shortcut') {
+    // ショートカット：工程名だけセットした行を1つ追加
+    state.stages.push(newStage(preset.name, ''));
+    render();
+    setTimeout(() => {
+      const cards = document.querySelectorAll('.stage-card');
+      const last = cards[cards.length - 1];
+      if (last) last.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 100);
+    showToast(`＋「${preset.name}」を追加`);
+    return;
+  }
+
+  // multi: 複数工程プリセット読み込み（既存挙動）
+  if (state.stages.length > 0 && !confirm(`既存の工程に「${preset.name}」プリセットを読み込みますか？
+（既存工程はクリアされます）`)) return;
+  state.stages = preset.stages.map(s => {
+    const stage = newStage(s.name, s.staff);
+    stage.periods[0].work = s.work;
+    return stage;
+  });
   render();
   showToast(`✓ プリセット読込完了`);
 }
@@ -654,7 +670,24 @@ function renderStages() {
       </div>
       
       <div class="field" style="margin-bottom: 8px;">
-        <input list="staffList" class="s-staff" value="${escapeHTML(s.staff)}" placeholder="担当（プルダウン or 手入力）" style="padding: 9px 12px; font-size: 14px;">
+        <div class="staff-row">
+          <select class="s-staff-select" data-stage-id="${s.id}">
+            <option value="">▼ プルダウンで選ぶ</option>
+            <option value="藤田（足場）">藤田（足場）</option>
+            <option value="生田（シーリング）">生田（シーリング）</option>
+            <option value="塚本（塗装）">塚本（塗装）</option>
+            <option value="木村（大工）">木村（大工）</option>
+            <option value="中島（壁紙）">中島（壁紙）</option>
+            <option value="足立（大工）">足立（大工）</option>
+            <option value="栗原（壁・床）">栗原（壁・床）</option>
+            <option value="岸本（塗装）">岸本（塗装）</option>
+            <option value="河田（床）">河田（床）</option>
+            <option value="太内（設備）">太内（設備）</option>
+            <option value="岡崎（電気）">岡崎（電気）</option>
+            <option value="村上昌史">村上昌史</option>
+          </select>
+          <input type="text" class="s-staff" value="${escapeHTML(s.staff)}" placeholder="担当者（手入力でもOK）">
+        </div>
       </div>
       
       <div class="periods" data-stage-id="${s.id}">
@@ -688,6 +721,19 @@ function attachStageListeners() {
     
     card.querySelector('.s-name').addEventListener('input', e => { stage.name = e.target.value; saveState(); });
     card.querySelector('.s-staff').addEventListener('input', e => { stage.staff = e.target.value; saveState(); });
+    // 担当者プルダウン: 選択時に input にも反映
+    const staffSelect = card.querySelector('.s-staff-select');
+    if (staffSelect) {
+      staffSelect.addEventListener('change', e => {
+        if (e.target.value) {
+          const inputEl = card.querySelector('.s-staff');
+          inputEl.value = e.target.value;
+          stage.staff = e.target.value;
+          saveState();
+          e.target.value = '';  // プルダウンを空に戻す
+        }
+      });
+    }
     
     card.querySelector('[data-action="delete-stage"]').addEventListener('click', () => {
       if (confirm(`「${stage.name || '工程'}」を削除しますか？`)) {
@@ -858,6 +904,21 @@ document.getElementById('btnReset').addEventListener('click', () => {
 
 ['propName', 'propAddr', 'startDate', 'endDate', 'manager', 'creator'].forEach(id => {
   document.getElementById(id).addEventListener('input', () => saveState());
+});
+
+
+// ヘッダー担当者プルダウン: 選択時に input にも反映
+document.querySelectorAll('.staff-select-header').forEach(sel => {
+  sel.addEventListener('change', e => {
+    if (e.target.value) {
+      const targetId = e.target.dataset.target;
+      const inputEl = document.getElementById(targetId);
+      inputEl.value = e.target.value;
+      state[targetId] = e.target.value;
+      saveState();
+      e.target.value = '';
+    }
+  });
 });
 
 // 初期化
