@@ -703,7 +703,7 @@ function renderPhotos(){
         </span>
       </div>
       <div class="ph-thumb-wrap" data-act="edit">
-        ${p.ann ? '<span class="ph-annotated-badge">注釈あり</span>' : ''}
+        ${(p.ann || (p.annTexts && p.annTexts.length)) ? '<span class="ph-annotated-badge">注釈あり</span>' : ''}
         <img class="ph-thumb" alt="写真${i+1}">
         <span class="ph-edit-hint">✏️ タップで書き込み</span>
       </div>
@@ -806,9 +806,10 @@ async function openEditor(photo){
     try{ annCtx.drawImage(await loadImg(photo.ann), 0, 0); }catch(e){}
   }
   ed.unit = Math.max(2, annCv.width / 420);
-  ed.texts = []; ed.dragIdx = -1;
+  ed.texts = photo.annTexts ? JSON.parse(JSON.stringify(photo.annTexts)) : [];
+  ed.dragIdx = -1;
   renderTexts();
-  ed.history = [{ img: annCv.toDataURL('image/png'), texts: [] }];
+  ed.history = [{ img: annCv.toDataURL('image/png'), texts: JSON.parse(JSON.stringify(ed.texts)) }];
   ed.histIdx = 0;
   updateHistBtns();
   $('#editorModal').classList.remove('hidden');
@@ -847,23 +848,22 @@ $('#edDone').addEventListener('click', () => {
   // 注釈レイヤーに何か描いてあるか判定
   const blank = document.createElement('canvas');
   blank.width = 1; blank.height = 1;
-  const hasAnn = annHasContent() || ed.texts.length > 0;
+  const hasStrokes = annHasContent();
+  const hasAnn = hasStrokes || ed.texts.length > 0;
   if (hasAnn){
-    // 文字レイヤーを注釈に焼き込んで保存
-    const a = document.createElement('canvas');
-    a.width = annCv.width; a.height = annCv.height;
-    const actx = a.getContext('2d');
-    actx.drawImage(annCv, 0, 0);
-    drawTextsTo(actx);
-    p.ann = a.toDataURL('image/png');
+    // 線・図形はラスタ、文字はオブジェクトのまま別々に保存（完了後も再編集できる）
+    p.ann = hasStrokes ? annCv.toDataURL('image/png') : null;
+    p.annTexts = ed.texts.length ? JSON.parse(JSON.stringify(ed.texts)) : null;
     const c = document.createElement('canvas');
     c.width = annCv.width; c.height = annCv.height;
     const ctx = c.getContext('2d');
     ctx.drawImage(ed.baseImg, 0, 0);
-    ctx.drawImage(a, 0, 0);
+    ctx.drawImage(annCv, 0, 0);
+    drawTextsTo(ctx);
     p.composite = c.toDataURL('image/jpeg', 0.85);
   }else{
     p.ann = null;
+    p.annTexts = null;
     p.composite = p.src;
   }
   closeEditor();
