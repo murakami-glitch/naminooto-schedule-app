@@ -472,11 +472,13 @@ table.rep-info th{
     <div class="ed-wrap" id="edWrap">
       <canvas id="baseCanvas"></canvas>
       <canvas id="annCanvas"></canvas>
+      <canvas id="txtCanvas" style="pointer-events:none;"></canvas>
     </div>
   </div>
   <div class="ed-tools">
     <div class="ed-row" id="toolRow">
       <button class="tool-btn active" data-tool="pen" type="button"><span class="ic">✏️</span>ペン</button>
+      <button class="tool-btn" data-tool="line" type="button"><span class="ic">╱</span>直線</button>
       <button class="tool-btn" data-tool="arrow" type="button"><span class="ic">↗</span>矢印</button>
       <button class="tool-btn" data-tool="rect" type="button"><span class="ic">▢</span>四角</button>
       <button class="tool-btn" data-tool="circle" type="button"><span class="ic">◯</span>丸</button>
@@ -747,11 +749,14 @@ const ed = {
   tool: 'pen', color: COLORS[0], thick: 1,
   drawing: false, sx: 0, sy: 0,
   snapshot: null,          // 図形プレビュー用
+  texts: [], dragIdx: -1, dragOffX: 0, dragOffY: 0, dragMoved: false,
   history: [], histIdx: -1,
   unit: 4                  // 基準線幅（キャンバス実寸から算出）
 };
 const baseCv = $('#baseCanvas'), annCv = $('#annCanvas');
 const annCtx = annCv.getContext('2d');
+const txtCv = $('#txtCanvas');
+const txtCtx = txtCv.getContext('2d');
 
 function buildEditorControls(){
   const cRow = $('#colorRow');
@@ -781,26 +786,29 @@ function buildEditorControls(){
     tRow.appendChild(b);
   });
   $('#toolRow').querySelectorAll('.tool-btn').forEach(b => {
-    b.addEventListener('click', () => {
-      ed.tool = b.dataset.tool;
-      $('#toolRow').querySelectorAll('.tool-btn').forEach(x => x.classList.remove('active'));
-      b.classList.add('active');
-    });
+    b.addEventListener('click', () => selectTool(b.dataset.tool));
   });
+}
+
+function selectTool(name){
+  ed.tool = name;
+  $('#toolRow').querySelectorAll('.tool-btn').forEach(x => x.classList.toggle('active', x.dataset.tool === name));
 }
 
 async function openEditor(photo){
   ed.photo = photo;
   ed.baseImg = await loadImg(photo.src);
-  baseCv.width = annCv.width = ed.baseImg.naturalWidth;
-  baseCv.height = annCv.height = ed.baseImg.naturalHeight;
+  baseCv.width = annCv.width = txtCv.width = ed.baseImg.naturalWidth;
+  baseCv.height = annCv.height = txtCv.height = ed.baseImg.naturalHeight;
   baseCv.getContext('2d').drawImage(ed.baseImg, 0, 0);
   annCtx.clearRect(0, 0, annCv.width, annCv.height);
   if (photo.ann){
     try{ annCtx.drawImage(await loadImg(photo.ann), 0, 0); }catch(e){}
   }
   ed.unit = Math.max(2, annCv.width / 420);
-  ed.history = [annCv.toDataURL('image/png')];
+  ed.texts = []; ed.dragIdx = -1;
+  renderTexts();
+  ed.history = [{ img: annCv.toDataURL('image/png'), texts: [] }];
   ed.histIdx = 0;
   updateHistBtns();
   $('#editorModal').classList.remove('hidden');
@@ -815,7 +823,7 @@ function fitEditorCanvas(){
   const w = Math.floor(annCv.width * scale), h = Math.floor(annCv.height * scale);
   const wrap = $('#edWrap');
   wrap.style.width = w + 'px'; wrap.style.height = h + 'px';
-  [baseCv, annCv].forEach(c => { c.style.width = w + 'px'; c.style.height = h + 'px'; });
+  [baseCv, annCv, txtCv].forEach(c => { c.style.width = w + 'px'; c.style.height = h + 'px'; });
 }
 window.addEventListener('resize', () => {
   if (!$('#editorModal').classList.contains('hidden')) fitEditorCanvas();
@@ -826,6 +834,7 @@ function closeEditor(){
   document.body.style.overflow = '';
   ed.photo = null; ed.baseImg = null;
   ed.history = []; ed.histIdx = -1;
+  ed.texts = []; ed.dragIdx = -1;
 }
 
 $('#edCancel').addEventListener('click', () => {
@@ -838,16 +847,23 @@ $('#edDone').addEventListener('click', () => {
   // 注釈レイヤーに何か描いてあるか判定
   const blank = document.createElement('canvas');
   blank.width = 1; blank.height = 1;
-  const hasAnn = annHasContent();
-  p.ann = hasAnn ? annCv.toDataURL('image/png') : null;
+  const hasAnn = annHasContent() || ed.texts.length > 0;
   if (hasAnn){
+    // 文字レイヤーを注釈に焼き込んで保存
+    const a = document.createElement('canvas');
+    a.width = annCv.width; a.height = annCv.height;
+    const actx = a.getContext('2d');
+    actx.drawImage(annCv, 0, 0);
+    drawTextsTo(actx);
+    p.ann = a.toDataURL('image/png');
     const c = document.createElement('canvas');
     c.width = annCv.width; c.height = annCv.height;
     const ctx = c.getContext('2d');
     ctx.drawImage(ed.baseImg, 0, 0);
-    ctx.drawImage(annCv, 0, 0);
+    ctx.drawImage(a, 0, 0);
     p.composite = c.toDataURL('image/jpeg', 0.85);
   }else{
+    p.ann = null;
     p.composite = p.src;
   }
   closeEditor();
@@ -865,19 +881,22 @@ function annHasContent(){
 // --- 履歴 ---
 function commitHistory(){
   ed.history = ed.history.slice(0, ed.histIdx + 1);
-  ed.history.push(annCv.toDataURL('image/png'));
+  ed.history.push({ img: annCv.toDataURL('image/png'), texts: JSON.parse(JSON.stringify(ed.texts)) });
   if (ed.history.length > 30) ed.history.shift();
   ed.histIdx = ed.history.length - 1;
   updateHistBtns();
 }
 async function restoreHistory(idx){
   ed.histIdx = idx;
-  const img = await loadImg(ed.history[idx]);
+  const snap = ed.history[idx];
+  const img = await loadImg(snap.img);
   annCtx.save();
   annCtx.globalCompositeOperation = 'source-over';
   annCtx.clearRect(0, 0, annCv.width, annCv.height);
   annCtx.drawImage(img, 0, 0);
   annCtx.restore();
+  ed.texts = JSON.parse(JSON.stringify(snap.texts || []));
+  renderTexts();
   updateHistBtns();
 }
 function updateHistBtns(){
@@ -887,8 +906,10 @@ function updateHistBtns(){
 $('#btnUndo').addEventListener('click', () => { if (ed.histIdx > 0) restoreHistory(ed.histIdx - 1); });
 $('#btnRedo').addEventListener('click', () => { if (ed.histIdx < ed.history.length - 1) restoreHistory(ed.histIdx + 1); });
 $('#btnClearAnn').addEventListener('click', () => {
-  if (!annHasContent()) return;
+  if (!annHasContent() && ed.texts.length === 0) return;
   if (!confirm('書き込みを全部消してええ？')) return;
+  ed.texts = [];
+  renderTexts();
   annCtx.save();
   annCtx.globalCompositeOperation = 'source-over';
   annCtx.clearRect(0, 0, annCv.width, annCv.height);
@@ -910,7 +931,19 @@ function lineWidth(){ return ed.unit * THICK[ed.thick]; }
 annCv.addEventListener('pointerdown', (e) => {
   e.preventDefault();
   const pos = canvasPos(e);
-  if (ed.tool === 'text'){ addText(pos); return; }
+  if (ed.tool === 'text'){
+    const hit = textAt(pos);
+    if (hit >= 0){
+      ed.dragIdx = hit;
+      const t = ed.texts[hit];
+      ed.dragOffX = pos.x - t.x; ed.dragOffY = pos.y - t.y;
+      ed.dragMoved = false;
+      annCv.setPointerCapture(e.pointerId);
+    }else{
+      addText(pos);
+    }
+    return;
+  }
   ed.drawing = true;
   ed.sx = pos.x; ed.sy = pos.y;
   annCv.setPointerCapture(e.pointerId);
@@ -930,6 +963,15 @@ annCv.addEventListener('pointerdown', (e) => {
 });
 
 annCv.addEventListener('pointermove', (e) => {
+  if (ed.dragIdx >= 0){
+    e.preventDefault();
+    const pos = canvasPos(e);
+    const t = ed.texts[ed.dragIdx];
+    t.x = pos.x - ed.dragOffX; t.y = pos.y - ed.dragOffY;
+    ed.dragMoved = true;
+    renderTexts();
+    return;
+  }
   if (!ed.drawing) return;
   e.preventDefault();
   const pos = canvasPos(e);
@@ -943,6 +985,13 @@ annCv.addEventListener('pointermove', (e) => {
 });
 
 function endStroke(e){
+  if (ed.dragIdx >= 0){
+    const i = ed.dragIdx;
+    ed.dragIdx = -1;
+    if (ed.dragMoved){ commitHistory(); }
+    else { editText(i); }
+    return;
+  }
   if (!ed.drawing) return;
   ed.drawing = false;
   if (ed.tool === 'pen' || ed.tool === 'eraser'){
@@ -981,6 +1030,11 @@ function drawShape(tool, x1, y1, x2, y2){
     annCtx.lineTo(x2 - head * Math.cos(ang + 0.45), y2 - head * Math.sin(ang + 0.45));
     annCtx.closePath();
     annCtx.fill();
+  }else if (tool === 'line'){
+    annCtx.beginPath();
+    annCtx.moveTo(x1, y1);
+    annCtx.lineTo(x2, y2);
+    annCtx.stroke();
   }else if (tool === 'rect'){
     annCtx.strokeRect(Math.min(x1,x2), Math.min(y1,y2), Math.abs(x2-x1), Math.abs(y2-y1));
   }else if (tool === 'circle'){
@@ -994,27 +1048,61 @@ function drawShape(tool, x1, y1, x2, y2){
 function addText(pos){
   setTimeout(() => {
     const txt = prompt('書き込む文字を入力してな');
-    if (!txt) return;
+    if (!txt){ selectTool('pen'); return; }
     const fs = Math.max(annCv.width / 22 * [0.75, 1, 1.35][ed.thick], 16);
-    annCtx.save();
-    annCtx.globalCompositeOperation = 'source-over';
-    annCtx.font = `700 ${fs}px 'Noto Sans JP', sans-serif`;
-    annCtx.textBaseline = 'top';
-    // 縁取りで視認性アップ
-    annCtx.lineWidth = fs / 7;
-    annCtx.lineJoin = 'round';
-    annCtx.strokeStyle = (ed.color === '#ffffff' || ed.color === '#fdd835') ? 'rgba(0,0,0,.75)' : 'rgba(255,255,255,.9)';
-    const lines = txt.split('\n');
-    lines.forEach((ln, i) => {
-      annCtx.strokeText(ln, pos.x, pos.y + i * fs * 1.25);
-    });
-    annCtx.fillStyle = ed.color;
-    lines.forEach((ln, i) => {
-      annCtx.fillText(ln, pos.x, pos.y + i * fs * 1.25);
-    });
-    annCtx.restore();
+    ed.texts.push({ x: pos.x, y: pos.y, txt: txt, color: ed.color, fs: fs });
+    renderTexts();
+    commitHistory();
+    toast('文字を置いたよ。ドラッグで移動、タップで編集できるで');
+  }, 30);
+}
+
+function editText(i){
+  setTimeout(() => {
+    const t = ed.texts[i];
+    const txt = prompt('文字を編集してな（空にしてOKで削除）', t.txt);
+    if (txt === null) return;
+    if (txt === ''){ ed.texts.splice(i, 1); }
+    else { t.txt = txt; }
+    renderTexts();
     commitHistory();
   }, 30);
+}
+
+function drawTextsTo(ctx){
+  ed.texts.forEach(t => {
+    ctx.save();
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.font = `700 ${t.fs}px 'Noto Sans JP', sans-serif`;
+    ctx.textBaseline = 'top';
+    ctx.lineWidth = t.fs / 7;
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = (t.color === '#ffffff' || t.color === '#fdd835') ? 'rgba(0,0,0,.75)' : 'rgba(255,255,255,.9)';
+    const lines = t.txt.split('\n');
+    lines.forEach((ln, i) => ctx.strokeText(ln, t.x, t.y + i * t.fs * 1.25));
+    ctx.fillStyle = t.color;
+    lines.forEach((ln, i) => ctx.fillText(ln, t.x, t.y + i * t.fs * 1.25));
+    ctx.restore();
+  });
+}
+
+function renderTexts(){
+  txtCtx.clearRect(0, 0, txtCv.width, txtCv.height);
+  drawTextsTo(txtCtx);
+}
+
+function textAt(pos){
+  for (let i = ed.texts.length - 1; i >= 0; i--){
+    const t = ed.texts[i];
+    txtCtx.font = `700 ${t.fs}px 'Noto Sans JP', sans-serif`;
+    const lines = t.txt.split('\n');
+    let w = 0;
+    lines.forEach(ln => { w = Math.max(w, txtCtx.measureText(ln).width); });
+    const h = lines.length * t.fs * 1.25;
+    const pad = t.fs * 0.4;
+    if (pos.x >= t.x - pad && pos.x <= t.x + w + pad && pos.y >= t.y - pad && pos.y <= t.y + h + pad) return i;
+  }
+  return -1;
 }
 
 /* =========================================================
